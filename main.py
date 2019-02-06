@@ -3,9 +3,9 @@ import jpype
 import requests
 import json
 
-token_ct = '#########################'
+token_ct = '###############################'
 
-dsn = '#########################'
+dsn = '############################'
 uid = '########'
 pwd = '########'
 tbl = 'METRO_STATUS'
@@ -32,15 +32,16 @@ def exec_query(query):
 
 def build_query(content):
     
-    num_rows = len(content)
+    num_rows = len(content['metro_content'])
+    wc = content['weather_content']['data']
     query = 'INSERT INTO ' + tbl + ' VALUES '
     
-    for idx, record in enumerate(content):
+    for idx, record in enumerate(content['metro_content']):
         query = query + "(" + record['Codigo'] + ",'" + record['StatusOperacao'] \
-             + "','" + record['Descricao'] + "'," +  record['temperature'] + "," \
-             + record['sensation'] + ",'" + record['wind_direction'] + "'," + \
-             record['wind_velocity'] + "," + record['humidity'] + ",'" + \
-             record['condition'] + "'," + record['pressure'] + ", CURRENT TIMESTAMP)"
+             + "','" + record['Descricao'] + "'," +  str(wc['temperature']) + "," \
+             + str(wc['sensation']) + ",'" + str(wc['wind_direction']) + "'," + \
+             str(wc['wind_velocity']) + "," + str(wc['humidity']) + ",'" + \
+             str(wc['condition']) + "'," + str(wc['pressure']) + ", CURRENT TIMESTAMP)"
 
         if idx+1 < num_rows:
             query = query + ', '
@@ -55,8 +56,8 @@ def get_metro_content():
     req = requests.get('https://www.viamobilidade.com.br/_vti_bin/SituacaoService.svc/GetAllSituacao')
 
     if req.status_code == 200:
-        json_response = json.loads(req.content)
-        return json_response, req.status_code, ''
+        json_response = json.loads(str(req.content))
+        return json_response, req.status_code
     else:
         return {}, req.status_code
 
@@ -65,7 +66,7 @@ def get_weather_content():
 
     if req.status_code == 200:
         json_response = json.loads(req.content)
-        return json_response, req.status_code, ''
+        return json_response, req.status_code
     else:
         return {}, req.status_code
 
@@ -75,17 +76,11 @@ def get_content():
     weather_content, w_status = get_weather_content()
 
     if m_status == 200 and w_status == 200:
+        content = {}
+        content['metro_content'] = metro_content
+        content['weather_content'] = weather_content
 
-        for idx, _ in enumerate(metro_content):
-            metro_content[idx]['temperature'] = str(weather_content['data']['temperature'])
-            metro_content[idx]['sensation'] = str(weather_content['data']['sensation'])
-            metro_content[idx]['wind_direction'] = str(weather_content['data']['wind_direction'])
-            metro_content[idx]['wind_velocity'] = str(weather_content['data']['wind_velocity'])
-            metro_content[idx]['humidity'] = str(weather_content['data']['humidity'])
-            metro_content[idx]['condition'] = str(weather_content['data']['condition'])
-            metro_content[idx]['pressure'] = str(weather_content['data']['pressure'])
-
-        return metro_content, 200, ''
+        return content, 200, ''
 
     else:
         msg = 'Could not retrieve'
