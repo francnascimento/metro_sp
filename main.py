@@ -1,7 +1,10 @@
+import queue
+import threading
 import jaydebeapi
 import jpype
 import requests
 import json
+
 
 token_ct = '###############################'
 
@@ -52,33 +55,63 @@ def save_content(content):
     query  = build_query(content)
     return exec_query(query)
 
-def get_metro_content():
+def get_metro_content(out_queue):
     req = requests.get('https://www.viamobilidade.com.br/_vti_bin/SituacaoService.svc/GetAllSituacao')
 
     if req.status_code == 200:
-        json_response = json.loads(str(req.content))
-        return json_response, req.status_code
+        json_response = req.json()
     else:
-        return {}, req.status_code
+        json_response = []
 
-def get_weather_content():
+    out_queue.put(json_response)
+    return json_response
+
+def get_weather_content(out_queue):
     req = requests.get('http://apiadvisor.climatempo.com.br/api/v1/weather/locale/3477/current?token=' + token_ct)
 
     if req.status_code == 200:
-        json_response = json.loads(req.content)
-        return json_response, req.status_code
+        json_response = req.json()
     else:
-        return {}, req.status_code
+        json_response = {}
 
+    out_queue.put(json_response)
+    return json_response
+
+def get_content_multhreading():
+    my_queue = queue.Queue()
+    t1 = threading.Thread(target=get_metro_content, args=(my_queue,))
+    t2 = threading.Thread(target=get_weather_content, args=(my_queue,))
+
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    content_w = my_queue.get()
+    content_m = my_queue.get()
+
+    m_status = 200
+    w_status = 200
+
+    if(isinstance(content_m, dict)):
+        content_m, content_w = content_w, content_m
+
+    if len(content_m) == 0: m_status = 500
+    if len(content_w) == 0: w_status = 500
+
+    return content_m, m_status, content_w, w_status
 
 def get_content():
-    metro_content, m_status = get_metro_content()
-    weather_content, w_status = get_weather_content()
+
+    #metro_content, m_status = get_metro_content()
+    #weather_content, w_status = get_weather_content()
+
+    content_m, m_status, content_w, w_status = get_content_multhreading()
 
     if m_status == 200 and w_status == 200:
         content = {}
-        content['metro_content'] = metro_content
-        content['weather_content'] = weather_content
+        content['metro_content'] = content_m
+        content['weather_content'] = content_w
 
         return content, 200, ''
 
