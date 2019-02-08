@@ -1,3 +1,4 @@
+import datetime
 import queue
 import threading
 import jaydebeapi
@@ -11,7 +12,8 @@ token_ct = '###############################'
 dsn = '############################'
 uid = '########'
 pwd = '########'
-tbl = 'METRO_STATUS'
+tbl_m = 'METRO_STATUS'
+tbl_w = 'WEATHER'
 
 jar = 'db2jcc4.jar' # location of the jdbc driver jar
 args='-Djava.class.path=%s' % jar
@@ -27,33 +29,42 @@ def exec_query(query):
 
     curs = conn.cursor()
 
-    curs.execute(query)
+    if(isinstance(query, list)):
+        for stmt in query:
+           curs.execute(stmt) 
+    else:
+        curs.execute(query)
 
     curs.close()
     conn.close()
     return 200, 'Success'
 
 def build_query(content):
-    
+
     num_rows = len(content['metro_content'])
+    datenow = str(datetime.datetime.now())
     wc = content['weather_content']['data']
-    query = 'INSERT INTO ' + tbl + ' VALUES '
-    
+
+    # defining weather query
+    query_w = 'INSERT INTO ' + tbl_w + ' VALUES (' + str(wc['temperature']) + "," \
+        + str(wc['sensation']) + ",'" + str(wc['wind_direction']) + "'," + \
+        str(wc['wind_velocity']) + "," + str(wc['humidity']) + ",'" + \
+        str(wc['condition']) + "'," + str(wc['pressure']) + ",'" + datenow + "')"
+
+    # defining metro_status query
+    query_m = 'INSERT INTO ' + tbl_m + ' VALUES '
     for idx, record in enumerate(content['metro_content']):
-        query = query + "(" + record['Codigo'] + ",'" + record['StatusOperacao'] \
-             + "','" + record['Descricao'] + "'," +  str(wc['temperature']) + "," \
-             + str(wc['sensation']) + ",'" + str(wc['wind_direction']) + "'," + \
-             str(wc['wind_velocity']) + "," + str(wc['humidity']) + ",'" + \
-             str(wc['condition']) + "'," + str(wc['pressure']) + ", CURRENT TIMESTAMP)"
+        query_m = query_m + "(" + record['Codigo'] + ",'" + record['StatusOperacao'] \
+             + "','" + record['Descricao'] + "','" + datenow + "')"
 
         if idx+1 < num_rows:
-            query = query + ', '
+            query_m = query_m + ', '
 
-    return query
+    return [query_m, query_w]
 
 def save_content(content):
-    query  = build_query(content)
-    return exec_query(query)
+    querys = build_query(content)
+    return exec_query(querys)
 
 def get_metro_content(out_queue):
     req = requests.get('https://www.viamobilidade.com.br/_vti_bin/SituacaoService.svc/GetAllSituacao')
